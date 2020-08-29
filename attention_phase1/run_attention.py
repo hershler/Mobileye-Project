@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 from scipy import signal as sg
 import scipy.ndimage as ndimage
-from scipy.ndimage.filters import minimum_filter
+
 
 """PIL imports:"""
 from PIL import Image
@@ -17,27 +17,58 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 
+def non_max_suppression(image, size_):
+    coord_x, coord_y = [], []
+
+    image_height, image_width = image.shape[:2]
+
+    for i in range(0, image_height - size_, size_):
+
+        for j in range(0, image_width - size_, size_):
+        
+            max_coord = np.argmax(image[i:i + size_, j:j + size_])
+            x_max = max_coord // size_ + i
+            y_max = max_coord % size_ + j
+            local_max = image[x_max, y_max]
+
+            if local_max > 120:
+                coord_x.append(x_max)
+                coord_y.append(y_max)
+
+    return coord_x, coord_y
+
+
 def find_tfl_lights(c_image: np.ndarray, **kwargs):
     """
-    Detect candidates for TFL lights. Use c_image, kwargs and you imagination to implement
+    Detect candidates for TFL lights.
     :param c_image: The image itself as np.uint8, shape of (H, W, 3)
-    :param kwargs: Whatever config you want to pass in here
+    :param kwargs: Whatever config we want to pass in here
     :return: 4-tuple of x_red, y_red, x_green, y_green
     """
-    kernel = np.array([[-8, 9, 8],
-                       [-20, 8, -20],
-                       [-0.8, 0, 0]])
-#    kernel = np.array([[-3 - 3j, 0 - 10j, +3 - 3j],
-#                       [-10 + 0j, 0 + 0j, +10 + 0j],
-#                       [-3 + 3j, 0 + 10j, +3 + 3j]])  # Gx + j*Gy
 
-    grad = sg.convolve2d(c_image, kernel, boundary='symm', mode='same')
-    result = minimum_filter(grad, size=20)
-    plt.imshow(result, cmap='gray')
-    x = np.arange(-100, 100, 20) + c_image.shape[1]/2
-    y_red = [c_image.shape[0] / 2 - 120] * len(x)
-    y_green = [c_image.shape[0] / 2 - 100] * len(x)
-    return x, y_red, x, y_green
+    im_red = c_image[:, :, 0]
+    im_green = c_image[:, :, 1]
+                       
+    kernel = np.array([[12/255, 29/255, 28/255],
+                       [0, 28/255, 0],
+                       [19.2/255, 20/255, 20/255]])
+
+    grad = sg.convolve2d(im_red, kernel, boundary='symm', mode='same')
+    max_im = ndimage.maximum_filter(grad, size=20)
+
+    x_red, y_red = non_max_suppression(max_im, 20)
+
+    grad = sg.convolve2d(im_green, kernel, boundary='symm', mode='same')
+    max_im = ndimage.maximum_filter(grad, size=20)
+
+    x_green, y_green = non_max_suppression(max_im, 20)
+
+    #print(f"x_red  : {x_red}")
+    #print(f"y_red  : {y_red}")
+    #print(f"x_green: {x_green}")
+    #print(f"y_green: {y_green}")
+
+    return x_red, y_red, x_green, y_green
 
 
 def show_image_and_gt(image, objs, fig_num=None):
@@ -57,7 +88,7 @@ def test_find_tfl_lights(image_path, json_path=None, fig_num=None):
     """
     Run the attention code
     """
-    image = np.array(Image.open(image_path).convert('L'))
+    image = np.array(Image.open(image_path))
     if json_path is None:
         objects = None
     else:
@@ -68,8 +99,8 @@ def test_find_tfl_lights(image_path, json_path=None, fig_num=None):
     show_image_and_gt(image, objects, fig_num)
 
     red_x, red_y, green_x, green_y = find_tfl_lights(image, some_threshold=42)
-    plt.plot(red_x, red_y, 'ro', color='r', markersize=4)
-    plt.plot(green_x, green_y, 'ro', color='g', markersize=4)
+    plt.plot(red_y, red_x, 'ro', color='r', markersize=2)
+    plt.plot(green_y, green_x, 'ro', color='g', markersize=2)
 
 
 def main(argv=None):
