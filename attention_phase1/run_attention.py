@@ -8,6 +8,7 @@ import argparse
 import numpy as np
 from scipy import signal as sg
 import scipy.ndimage as ndimage
+from skimage.feature import peak_local_max
 
 
 """PIL imports:"""
@@ -36,53 +37,32 @@ def non_max_suppression(image, size_):
                 coord_y.append(y_max)
 
     return coord_x, coord_y
-
-
 def find_tfl_lights(c_image: np.ndarray, **kwargs):
     """
-    Detect candidates for TFL lights.
+    Detect candidates for TFL lights. Use c_image, kwargs and you imagination to implement
     :param c_image: The image itself as np.uint8, shape of (H, W, 3)
-    :param kwargs: Whatever config we want to pass in here
+    :param kwargs: Whatever config you want to pass in here
     :return: 4-tuple of x_red, y_red, x_green, y_green
     """
+    kernel_r = np.array([[-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5],[-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [1, 1, -0.5], [1, 2, 1], [1, 2, 1], [1, 1, 1], [1, 1, 1]])
+    kernel_g = np.array([[1, 1, 1], [1, 1, 1], [1, 2, 1],  [1, 2, 1], [1, 1, -0.5],  [1, 1, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5],[-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5], [-0.5, -0.5, -0.5],])
 
     im_red = c_image[:, :, 0]
     im_green = c_image[:, :, 1]
-                       
-    kernel = np.array([[12/255, 29/255, 28/255],
-                       [0, 28/255, 0],
-                       [19.2/255, 20/255, 20/255]])
 
-    kernel = np.array([[-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, 8/225, 8/225, 8/225, 8/225, 8/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, 8/225, 8/225, 8/225, 8/225, 8/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, 8/225, 8/225, 8/225, 8/225, 8/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, 8/225, 8/225, 8/225, 8/225, 8/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, 8/225, 8/225, 8/225, 8/225, 8/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225],
-                 [-1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225, -1/225]])
-    grad = sg.convolve2d(im_red, kernel, boundary='symm', mode='same')
-    max_im = ndimage.maximum_filter(grad, size=20)
-
-    x_red, y_red = non_max_suppression(max_im, 20)
-
-    grad = sg.convolve2d(im_green, kernel, boundary='symm', mode='same')
-    max_im = ndimage.maximum_filter(grad, size=20)
-
-    x_green, y_green = non_max_suppression(max_im, 20)
-
-    #print(f"x_red  : {x_red}")
-    #print(f"y_red  : {y_red}")
-    #print(f"x_green: {x_green}")
-    #print(f"y_green: {y_green}")
-
+    grad_r = sg.convolve2d(im_red, kernel_r, mode='same')
+    grad_g = sg.convolve2d(im_green, kernel_g, mode='same')
+    
+    coords_red = peak_local_max(grad_r, min_distance=20, num_peaks=5)
+    coords_green = peak_local_max(grad_g, min_distance=20, num_peaks=5)
+    
+ #   x_red, y_red = non_max_suppression(max_im, 20)
+ #   x_green, y_green = non_max_suppression(max_im, 20)
+    
+    
+    x_red, y_red = coords_red[:, -1], coords_red[:, 0]
+    x_green, y_green = coords_green[:, -1], coords_green[:, 0]
+    
     return x_red, y_red, x_green, y_green
 
 
@@ -114,8 +94,8 @@ def test_find_tfl_lights(image_path, json_path=None, fig_num=None):
     show_image_and_gt(image, objects, fig_num)
 
     red_x, red_y, green_x, green_y = find_tfl_lights(image, some_threshold=42)
-    plt.plot(red_y, red_x, 'ro', color='r', markersize=2)
-    plt.plot(green_y, green_x, 'ro', color='g', markersize=2)
+    plt.plot(red_x, red_y, 'ro', color='r', markersize=2)
+    plt.plot(green_x, green_y, 'ro', color='g', markersize=2)
 
 
 def main(argv=None):
@@ -128,10 +108,11 @@ def main(argv=None):
     parser.add_argument("-j", "--json", type=str, help="Path to json GT for comparison")
     parser.add_argument('-d', '--dir', type=str, help='Directory to scan images in')
     args = parser.parse_args(argv)
-    default_base = '../../data'
+    default_base = '../../data/leftImg8bit_trainvaltest/leftImg8bit/train/bremen'
+
     if args.dir is None:
         args.dir = default_base
-    flist = glob.glob(os.path.join(args.dir, '*_leftImg8bit.png'))
+    flist = glob.glob(os.path.join(args.dir, '*_leftImg8bit.png'))[18:22]
     for image in flist:
         json_fn = image.replace('_leftImg8bit.png', '_gtFine_polygons.json')
         if not os.path.exists(json_fn):
