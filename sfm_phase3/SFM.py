@@ -62,11 +62,11 @@ def decompose(EM):
 
 def rotate(pts, R):
     # rotate the points - pts using R
-    ones = np.ones((3, 1), int)
-    orig_vec_xy1 = (np.hstack([pts, ones])).T
-    rotate_vec_abc = np.dot(R, orig_vec_xy1)
-
-    return (rotate_vec_abc[:2] / rotate_vec_abc[2]).T
+    ones = np.ones((pts.shape[0], 1), int)
+    orig_vec_xy1 = (np.hstack([pts, ones]))
+    mult = np.dot(R, orig_vec_xy1.T)
+    rotate_vec_abc = (mult[:2] / mult[2]).T
+    return rotate_vec_abc[:, :2]
 
 
 def find_corresponding_points(p, norm_pts_rot, foe):
@@ -102,6 +102,5 @@ def calc_dist(p_curr, p_rot, foe, tZ):
 
     diff_x = abs(p_rot[x] - p_curr[x])
     diff_y = abs(p_rot[y] - p_curr[y])
-    ratio = diff_x / (diff_x + diff_y)
 
-    return Z_by_x * ratio + Z_by_y * (1 - ratio)
+    return Z_by_x * diff_x / (diff_x + diff_y) + Z_by_y * diff_y / (diff_x + diff_y)
