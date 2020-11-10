@@ -5,8 +5,10 @@ from sfm_phase3.SFM import calc_tfl_dist, normalize, unnormalize, rotate, prepar
 from detection_phase2.data_preparing import crop_image
 from frame_container import FrameContainer
 
+from tensorflow.keras.models import load_model
+
 import numpy as np
-import random
+# import random
 
 # TODO: add asserts to check validity
 
@@ -21,6 +23,7 @@ class TFLMan:
         self.__focal = self.__data['flx']
         self.__prev_container = None
         self.curr_container = None
+        self.__net = load_model(r"data/model.h5")
 
     def run(self, curr_image, _id):
 
@@ -49,7 +52,8 @@ class TFLMan:
 
         for candidate in candidates:
             crop_img = crop_image(self.curr_container.img, candidate, crop_size, padded=False)
-            predictions = [[0, random.random() + 0.2]]
+            # predictions = [[0, random.random() + 0.2]]
+            predictions = self.__net.predict(crop_img.reshape([-1, crop_size, crop_size, 3]))
             l_predicted_label.append(1 if predictions[0][1] > 0.98 else 0)
 
         traffic_lights = [candidates[i] for i in range(len(candidates)) if l_predicted_label[i] == 1]
