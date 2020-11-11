@@ -1,15 +1,14 @@
-import pickle
-from typing import List, Tuple
-
 from attention_phase1.attention import find_tfl_lights
 from sfm_phase3.SFM import calc_tfl_dist, normalize, unnormalize, rotate, prepare_3d_data, calc_EM
 from detection_phase2.data_preparing import crop_image
 from frame_container import FrameContainer
 
 from tensorflow.keras.models import load_model
-
+import pickle
+from typing import List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
+
 # import random
 
 DEBUG = True
@@ -42,8 +41,14 @@ class TFLMan:
         self.curr_container = FrameContainer(curr_image_path)
 
         candidates, auxiliary = self.__get_tfl_candidates()
+        assert len(candidates) == len(auxiliary)
+
         self.curr_container.traffic_light, tfl_aux = self.__get_tfl_coordinates(candidates, auxiliary)
-        self.__get_distance(_id)
+        assert len(self.curr_container.traffic_light) == len(tfl_aux)
+        assert len(self.curr_container.traffic_light) <= len(candidates)
+
+        self.curr_container.traffic_lights_3d_location = self.__get_distance(_id)
+        assert len(self.curr_container.traffic_lights_3d_location) == len(self.curr_container.traffic_light)
 
         if DEBUG is True:
             plt.show()
@@ -78,20 +83,21 @@ class TFLMan:
         auxiliary = [auxiliary[i] for i in range(len(auxiliary)) if l_predicted_label[i]]
 
         if DEBUG is True:
-            print(type(traffic_lights), type(traffic_lights[0]))
             self.visualize2(auxiliary, traffic_lights)
 
         return np.array(traffic_lights), auxiliary
 
-    def __get_distance(self, _id: int) -> None:
-
+    def __get_distance(self, _id: int) -> np.ndarray:
+        tfl_3d_location = [0] * len(self.curr_container.traffic_light)
         if len(self.curr_container.traffic_light) and self.__prev_container:
             self.curr_container.EM = calc_EM(self.__data, _id - 1, _id)
-            tfl_3D_location = calc_tfl_dist(self.__prev_container, self.curr_container, self.__focal, self.__pp)
-            self.curr_container.traffic_light_3D_location = tfl_3D_location
+            temp_container = calc_tfl_dist(self.__prev_container, self.curr_container, self.__focal, self.__pp)
+            tfl_3d_location = temp_container.traffic_lights_3d_location
 
         if DEBUG is True:
             self.visualize3()
+
+        return tfl_3d_location
 
     def visualize1(self, x_green: np.ndarray, x_red: np.ndarray, y_green: np.ndarray, y_red: np.ndarray) -> None:
         self.tfl_candidates.set_title('tfl candidates:')
@@ -111,11 +117,12 @@ class TFLMan:
         self.tfl_distance.imshow(self.curr_container.img)
         if not len(self.curr_container.traffic_light) or not self.__prev_container:
             return
+
         tfl_3d_coordinates = zip(self.curr_container.traffic_light[:, 0],
                                  self.curr_container.traffic_light[:, 1],
                                  self.curr_container.traffic_lights_3d_location[:, 2])
         norm_prev_pts, _, R, norm_foe, _ = prepare_3d_data(self.__prev_container, self.curr_container,
-                                                                         self.__focal, self.__pp)
+                                                           self.__focal, self.__pp)
         norm_rot_pts = rotate(norm_prev_pts, R)
         rot_pts = unnormalize(norm_rot_pts, self.__focal, self.__pp)
         foe = np.squeeze(unnormalize(np.array(norm_foe), self.__focal, self.__pp))
