@@ -1,7 +1,8 @@
 import pickle
+from typing import List, Tuple
 
 from attention_phase1.attention import find_tfl_lights
-from sfm_phase3.SFM import calc_tfl_dist, normalize, unnormalize, rotate, prepare_3D_data
+from sfm_phase3.SFM import calc_tfl_dist, normalize, unnormalize, rotate, prepare_3d_data, calc_EM
 from detection_phase2.data_preparing import crop_image
 from frame_container import FrameContainer
 
@@ -12,15 +13,17 @@ import matplotlib.pyplot as plt
 # import random
 
 DEBUG = True
+
+
 # TODO: add asserts to check validity
 
 
 class TFLMan:
 
-    def __init__(self, pkl_path):
+    def __init__(self, pkl_path: str) -> None:
 
         with open(pkl_path, 'rb') as pkl_file:
-            self.__data = pickle.load(pkl_file, encoding='latin1')
+            self.__data: dict = pickle.load(pkl_file, encoding='latin1')
         self.__pp = self.__data['principle_point']
         self.__focal = self.__data['flx']
         self.__prev_container = None
@@ -30,13 +33,13 @@ class TFLMan:
         if DEBUG is True:
             self.tfl_candidates, self.tfl, self.tfl_distance = None, None, None
 
-    def run(self, curr_image, _id):
+    def run(self, curr_image_path: str, _id: int) -> Tuple[FrameContainer, List[int]]:
 
         if DEBUG is True:
-            fig, (self.tfl_candidates, self.tfl, self.tfl_distance) =\
+            fig, (self.tfl_candidates, self.tfl, self.tfl_distance) = \
                 plt.subplots(1, 3, figsize=(12, 5))
 
-        self.curr_container = FrameContainer(curr_image)
+        self.curr_container = FrameContainer(curr_image_path)
 
         candidates, auxiliary = self.__get_tfl_candidates()
         self.curr_container.traffic_light, tfl_aux = self.__get_tfl_coordinates(candidates, auxiliary)
@@ -47,9 +50,9 @@ class TFLMan:
 
         self.__prev_container = self.curr_container
 
-        return self.curr_container.traffic_lights_3d_location, tfl_aux
+        return self.curr_container, tfl_aux
 
-    def __get_tfl_candidates(self):
+    def __get_tfl_candidates(self) -> Tuple[np.ndarray, List[int]]:
         x_red, y_red, x_green, y_green = find_tfl_lights(self.curr_container.img)
 
         candidates = [[x_red[i], y_red[i]] for i in range(len(x_red))] + \
@@ -61,50 +64,48 @@ class TFLMan:
 
         return np.array(candidates), auxiliary
 
-    def __get_tfl_coordinates(self, candidates, auxiliary):
+    def __get_tfl_coordinates(self, candidates: np.ndarray, auxiliary: List[int]) -> Tuple[np.ndarray, List[int]]:
         crop_size = 81
         l_predicted_label = []
 
         for candidate in candidates:
-            crop_img = crop_image(self.curr_container.img, candidate, crop_size, padded=False)
+            crop_img: np.ndarray = crop_image(self.curr_container.img, candidate, crop_size, padded=False)
             predictions = self.__net.predict(crop_img.reshape([-1, crop_size, crop_size, 3]))
             # predictions = [[0, random.random() + 0.2]]
             l_predicted_label.append(1 if predictions[0][1] > 0.98 else 0)
 
-        traffic_lights = [candidates[i] for i in range(len(candidates)) if l_predicted_label[i] == 1]
-        auxiliary = [auxiliary[i] for i in range(len(auxiliary)) if l_predicted_label[i] == 1]
+        traffic_lights = [candidates[i] for i in range(len(candidates)) if l_predicted_label[i]]
+        auxiliary = [auxiliary[i] for i in range(len(auxiliary)) if l_predicted_label[i]]
 
         if DEBUG is True:
+            print(type(traffic_lights), type(traffic_lights[0]))
             self.visualize2(auxiliary, traffic_lights)
 
         return np.array(traffic_lights), auxiliary
 
-    def __get_distance(self, _id):
+    def __get_distance(self, _id: int) -> None:
 
         if len(self.curr_container.traffic_light) and self.__prev_container:
-            EM = np.eye(4)
-            for i in range(_id - 1, _id):
-                EM = np.dot(self.__data['egomotion_' + str(i) + '-' + str(i + 1)], EM)
-            self.curr_container.EM = EM
+            self.curr_container.EM = calc_EM(self.__data, _id - 1, _id)
             tfl_3D_location = calc_tfl_dist(self.__prev_container, self.curr_container, self.__focal, self.__pp)
             self.curr_container.traffic_light_3D_location = tfl_3D_location
 
         if DEBUG is True:
             self.visualize3()
 
-    def visualize1(self, x_green, x_red, y_green, y_red):
+    def visualize1(self, x_green: np.ndarray, x_red: np.ndarray, y_green: np.ndarray, y_red: np.ndarray) -> None:
         self.tfl_candidates.set_title('tfl candidates:')
         self.tfl_candidates.imshow(self.curr_container.img)
         self.tfl_candidates.plot(x_red, y_red, 'r+')
         self.tfl_candidates.plot(x_green, y_green, 'g+')
 
-    def visualize2(self, auxiliary, traffic_lights):
+    def visualize2(self, auxiliary: List[int], traffic_lights: List[np.ndarray]) -> None:
         self.tfl.set_title('tfl 2D location:')
         self.tfl.imshow(self.curr_container.img)
         for aux, coord in zip(auxiliary, traffic_lights):
             self.tfl.plot(coord[0], coord[1], 'g+' if 1 == aux else 'r+')
 
-    def visualize3(self):
+    def visualize3(self) -> None:
 
         self.tfl_distance.set_title('tfl 3D location:')
         self.tfl_distance.imshow(self.curr_container.img)
@@ -113,8 +114,8 @@ class TFLMan:
         tfl_3d_coordinates = zip(self.curr_container.traffic_light[:, 0],
                                  self.curr_container.traffic_light[:, 1],
                                  self.curr_container.traffic_lights_3d_location[:, 2])
-        norm_prev_pts, norm_curr_pts, R, norm_foe, tZ = prepare_3D_data(self.__prev_container, self.curr_container,
-                                                                        self.__focal, self.__pp)
+        norm_prev_pts, _, R, norm_foe, _ = prepare_3d_data(self.__prev_container, self.curr_container,
+                                                                         self.__focal, self.__pp)
         norm_rot_pts = rotate(norm_prev_pts, R)
         rot_pts = unnormalize(norm_rot_pts, self.__focal, self.__pp)
         foe = np.squeeze(unnormalize(np.array(norm_foe), self.__focal, self.__pp))

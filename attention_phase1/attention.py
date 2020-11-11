@@ -1,9 +1,11 @@
+from typing import Tuple
+
 from scipy import signal as sg
 from skimage.feature import peak_local_max
 import numpy as np
 
 
-def find_tfl_lights(c_image: np.ndarray):
+def find_tfl_lights(c_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Detect candidates for TFL lights.
     """

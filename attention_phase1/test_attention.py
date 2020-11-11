@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from attention import find_tfl_lights
 
 
-def show_image_and_gt(image, objs, fig_num=None):
+def show_image_and_gt(image: np.ndarray, objs, fig_num=None) -> None:
     plt.figure(fig_num).clf()
     plt.imshow(image)
     labels = set()
@@ -22,7 +22,7 @@ def show_image_and_gt(image, objs, fig_num=None):
             plt.legend()
 
 
-def test_find_tfl_lights(image_path, json_path=None, fig_num=None):
+def test_find_tfl_lights(image_path: str, json_path=None, fig_num=None) -> None:
     """
     Run the attention code
     """
