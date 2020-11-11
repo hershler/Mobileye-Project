@@ -1,6 +1,6 @@
 # Mobileye Project
 
-<img source="https://user-images.githubusercontent.com/57594477/98829618-142f0780-2442-11eb-87c5-93eb1a3cda2b.PNG" width="20">
+<img source="https://user-images.githubusercontent.com/57594477/98829618-142f0780-2442-11eb-87c5-93eb1a3cda2b.PNG" width="250">
 
 Detecting traffic lights and estimating the distance to them within given video using image processing and machine learning.
 
